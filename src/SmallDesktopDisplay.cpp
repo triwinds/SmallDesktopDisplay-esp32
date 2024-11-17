@@ -27,9 +27,9 @@
  * *****************************************************************/
 #include <ArduinoJson.h>
 #include <TimeLib.h>
-#include <ESP8266WiFi.h>
-#include <ESP8266HTTPClient.h>
-#include <ESP8266WebServer.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <WebServer.h>
 #include <WiFiUdp.h>
 #include <TFT_eSPI.h>
 #include <SPI.h>
@@ -1161,7 +1161,7 @@ void sendNTPpacket(IPAddress &address)
 
 void esp_reset(Button2 &btn)
 {
-  ESP.reset();
+  ESP.restart();
 }
 
 void wifi_reset(Button2 &btn)
@@ -1208,7 +1208,7 @@ void WIFI_reflash_All()
       getNtpTime();
       //其他需要联网的方法写在后面
 
-      WiFi.forceSleepBegin(); // Wifi Off
+      WiFi.setSleep(true); // Wifi Off
       Serial.println("WIFI sleep......");
       Wifi_en = 0;
     }
@@ -1223,7 +1223,7 @@ void WIFI_reflash_All()
 void openWifi()
 {
   Serial.println("WIFI reset......");
-  WiFi.forceSleepWake(); // wifi on
+  WiFi.setSleep(false); // wifi on
   Wifi_en = 1;
 }
 
@@ -1356,7 +1356,7 @@ void setup()
     IndoorTem();
 #endif
 
-  WiFi.forceSleepBegin(); // wifi off
+  WiFi.setSleep(true); // wifi off
   Serial.println("WIFI休眠......");
   Wifi_en = 0;
 
