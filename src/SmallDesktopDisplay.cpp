@@ -93,6 +93,7 @@ void esp_reset(Button2 &btn);
 void scrollBanner();
 void weaterData(String *cityDZ, String *dataSK, String *dataFC); //天气信息写到屏幕上
 void refresh_AnimatedImage();                                    //更新右下角
+unsigned long long currentUnixTimestamp();
 
 //创建时间更新函数线程
 Thread reflash_time = Thread();
@@ -129,7 +130,7 @@ unsigned int updateweater_time = 1;
 // LCD屏幕相关设置
 TFT_eSPI tft = TFT_eSPI(); // 引脚请自行配置tft_espi库中的 User_Setup.h文件
 TFT_eSprite clk = TFT_eSprite(&tft);
-#define LCD_BL_PIN 5 // LCD背光引脚
+#define LCD_BL_PIN 15 // LCD背光引脚
 uint16_t bgColor = 0x0000;
 
 //其余状态标志位
@@ -149,6 +150,7 @@ int wifi_addr = 30; //被写入数据的EEPROM地址编号  20wifi-ssid-psw
 
 time_t prevDisplay = 0;       //显示时间显示记录
 int Amimate_reflash_Time = 0; //更新时间记录
+unsigned long long unixTimestampShift = 0; //时间偏移量
 
 /*** Component objects ***/
 WeatherNum wrat;
@@ -1036,16 +1038,23 @@ void drawLineFont(uint32_t _x, uint32_t _y, uint32_t _num, uint32_t _size, uint3
   }
 }
 
+unsigned long long currentUnixTimestamp() {
+  return unixTimestampShift + millis();
+}
+
 int Hour_sign = 60;
 int Minute_sign = 60;
 int Second_sign = 60;
 // 日期刷新
 void digitalClockDisplay(int reflash_en = 0)
 {
+  auto unixSecond = currentUnixTimestamp() / 1000;
+  int currentSecond = unixSecond % 60;
+  setTime(unixSecond);
   // 时钟刷新,输入1强制刷新
   int now_hour = hour();     //获取小时
   int now_minute = minute(); //获取分钟
-  int now_second = second(); //获取秒针
+  int now_second = currentSecond; //获取秒针
   //小时刷新
   if ((now_hour != Hour_sign) || (reflash_en == 1))
   {
@@ -1101,6 +1110,15 @@ void digitalClockDisplay(int reflash_en = 0)
 const int NTP_PACKET_SIZE = 48;     // NTP时间在消息的前48字节中
 byte packetBuffer[NTP_PACKET_SIZE]; // buffer to hold incoming & outgoing packets
 
+unsigned long unpack(byte *buf, int pos) {
+  unsigned long t = 0;
+  t = (unsigned long)buf[pos] << 24;
+  t |= (unsigned long)buf[pos + 1] << 16;
+  t |= (unsigned long)buf[pos + 2] << 8;
+  t |= (unsigned long)buf[pos + 3];
+  return t;
+}
+
 time_t getNtpTime()
 {
   IPAddress ntpServerIP; // NTP server's ip address
@@ -1120,16 +1138,22 @@ time_t getNtpTime()
     int size = Udp.parsePacket();
     if (size >= NTP_PACKET_SIZE)
     {
+      auto duration = millis() - beginWait;
       Serial.println("Receive NTP Response");
-      Udp.read(packetBuffer, NTP_PACKET_SIZE); // read packet into the buffer
+      Udp.read(packetBuffer, NTP_PACKET_SIZE);  // read packet into the buffer
       unsigned long secsSince1900;
       // convert four bytes starting at location 40 to a long integer
-      secsSince1900 = (unsigned long)packetBuffer[40] << 24;
-      secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
-      secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
-      secsSince1900 |= (unsigned long)packetBuffer[43];
+      secsSince1900 = unpack(packetBuffer, 40);
       // Serial.println(secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR);
-      return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
+      unsigned long tmp = unpack(packetBuffer, 44);
+      double frac = (double) tmp / 4294967296;
+      // Serial.println(frac);
+      unsigned long unixSecond = secsSince1900 - 2208988800UL + timeZone * 3600;
+      unsigned long long unixTimestamp = ((double)unixSecond + frac) * 1000;
+      // Serial.println(unixTimestamp);
+      unixTimestampShift = unixTimestamp - millis();
+      unixTimestampShift += duration / 2;
+      return unixSecond;
     }
   }
   Serial.println("No NTP Response :-(");
@@ -1176,10 +1200,12 @@ void wifi_reset(Button2 &btn)
 //更新时间
 void reflashTime()
 {
-  prevDisplay = now();
-  // timeClockDisplay(1);
-  digitalClockDisplay();
-  prevTime = 0;
+  auto currentSecond = currentUnixTimestamp() / 1000;
+  if (currentSecond != prevDisplay) {
+    digitalClockDisplay();
+    prevDisplay = currentSecond;
+    prevTime = 0;
+  }
 }
 
 //切换天气 or 空气质量
@@ -1360,7 +1386,7 @@ void setup()
   Serial.println("WIFI休眠......");
   Wifi_en = 0;
 
-  reflash_time.setInterval(300); //设置所需间隔 100毫秒
+  reflash_time.setInterval(10); //设置所需间隔 100毫秒
   reflash_time.onRun(reflashTime);
 
   reflash_Banner.setInterval(2 * TMS); //设置所需间隔 2秒
