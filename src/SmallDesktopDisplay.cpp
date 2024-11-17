@@ -44,6 +44,10 @@
 #include "Animate/Animate.h"         //动画模块
 #include "wifiReFlash/wifiReFlash.h" //WIFI功能模块
 
+#include <iomanip>
+#include <sstream>
+
+
 #define Version "SDD V1.4.3"
 /* *****************************************************************
  *  配置使能位
@@ -63,13 +67,21 @@ WiFiManager wm; // global wm instance
 DHT dht(DHTPIN, DHTTYPE);
 #endif
 
+#if SHT3x_EN
+#include "sht3x.h"
+// GPIO 1 SHT3X SDA
+// GPIO 2 SHT3X SCL
+SHT3x sht3x(1, 2);
+#endif
+
 //定义按钮引脚
 Button2 Button_sw1 = Button2(4);
 
 /* *****************************************************************
  *  字库、图片库
  * *****************************************************************/
-#include "font/ZdyLwFont_20.h"  //字体库
+// #include "font/ZdyLwFont_20.h"  //字体库
+#include "font/ali_puhuiti.h"
 #include "font/timeClockFont.h" //字体库
 #include "img/temperature.h"    //温度图标
 #include "img/humidity.h"       //湿度图标
@@ -94,6 +106,7 @@ void scrollBanner();
 void weaterData(String *cityDZ, String *dataSK, String *dataFC); //天气信息写到屏幕上
 void refresh_AnimatedImage();                                    //更新右下角
 unsigned long long currentUnixTimestamp();
+void drawTemp(float temp, float humi); //绘制温度和湿度
 
 //创建时间更新函数线程
 Thread reflash_time = Thread();
@@ -312,6 +325,19 @@ void IndoorTem()
   // clk.drawString("100%",28,13);
   clk.pushSprite(170, 214);
   clk.deleteSprite();
+}
+#endif
+
+#if SHT3x_EN
+//外接SHT3x传感器，显示数据
+void ShtIndoorTem()
+{
+  sht3x.update(); // 更新温湿度数据
+  float t = sht3x.getTemperature();
+  float h = sht3x.getHumidity();
+  // Serial.printf("Temperature: %2.2f \n", t);
+  // Serial.printf("Humidity: %2.2f \n", h);
+  drawTemp(t, h);
 }
 #endif
 
@@ -827,6 +853,70 @@ void getCityWeater()
   httpClient.end();
 }
 
+
+void drawTemp(float temp, float humi)
+{
+  /***绘制相关文字***/
+  clk.setColorDepth(8);
+  clk.loadFont(ali_puhuiti);
+  //温度
+  clk.createSprite(58, 24); 
+  clk.fillSprite(bgColor);
+  clk.setTextDatum(CC_DATUM);
+  clk.setTextColor(TFT_WHITE, bgColor);
+  std::stringstream stream;
+  stream << std::fixed << std::setprecision(1) << temp << "℃";
+  std::string s = stream.str();
+  auto tmpStr = s.c_str();
+  clk.drawString(tmpStr,28,13);
+  clk.pushSprite(100,184);
+  clk.deleteSprite();
+  tempnum = (int) temp;
+  tempnum = tempnum+10;
+  if(tempnum<10)
+    tempcol=0x00FF;
+  else if(tempnum<28)
+    tempcol=0x0AFF;
+  else if(tempnum<34)
+    tempcol=0x0F0F;
+  else if(tempnum<41)
+    tempcol=0xFF0F;
+  else if(tempnum<49)
+    tempcol=0xF00F;
+  else
+  {
+    tempcol=0xF00F;
+    tempnum=50;
+  }
+  tempWin();
+  
+  //湿度
+  clk.createSprite(58, 24); 
+  clk.fillSprite(bgColor);
+  clk.setTextDatum(CC_DATUM);
+  clk.setTextColor(TFT_WHITE, bgColor);
+  stream.str("");
+  stream << (int) humi << "%";
+  clk.drawString(stream.str().c_str(),28,13);
+  //clk.drawString("100%",28,13);
+  clk.pushSprite(100,214);
+  clk.deleteSprite();
+  //String A = sk["SD"].as<String>();
+  huminum = (int) humi;
+  
+  if(huminum>90)
+    humicol=0x00FF;
+  else if(huminum>70)
+    humicol=0x0AFF;
+  else if(huminum>40)
+    humicol=0x0F0F;
+  else if(huminum>20)
+    humicol=0xFF0F;
+  else
+    humicol=0xF00F;
+  humidityWin();
+}
+
 String scrollText[7];
 // int scrollTextWidth = 0;
 
@@ -837,63 +927,19 @@ void weaterData(String *cityDZ, String *dataSK, String *dataFC)
   DynamicJsonDocument doc(1024);
   deserializeJson(doc, *dataSK);
   JsonObject sk = doc.as<JsonObject>();
+  scrollText[6] = "室外 "+sk["temp"].as<String>()+"℃";
 
   // TFT_eSprite clkb = TFT_eSprite(&tft);
 
   /***绘制相关文字***/
   clk.setColorDepth(8);
-  clk.loadFont(ZdyLwFont_20);
+  clk.loadFont(ali_puhuiti);
 
-  // 温度
-  clk.createSprite(58, 24);
-  clk.fillSprite(bgColor);
-  clk.setTextDatum(CC_DATUM);
-  clk.setTextColor(TFT_WHITE, bgColor);
-  clk.drawString(sk["temp"].as<String>() + "℃", 28, 13);
-  clk.pushSprite(100, 184);
-  clk.deleteSprite();
-  tempnum = sk["temp"].as<int>();
-  tempnum = tempnum + 10;
-  if (tempnum < 10)
-    tempcol = 0x00FF;
-  else if (tempnum < 28)
-    tempcol = 0x0AFF;
-  else if (tempnum < 34)
-    tempcol = 0x0F0F;
-  else if (tempnum < 41)
-    tempcol = 0xFF0F;
-  else if (tempnum < 49)
-    tempcol = 0xF00F;
-  else
-  {
-    tempcol = 0xF00F;
-    tempnum = 50;
-  }
-  tempWin();
-
-  // 湿度
-  clk.createSprite(58, 24);
-  clk.fillSprite(bgColor);
-  clk.setTextDatum(CC_DATUM);
-  clk.setTextColor(TFT_WHITE, bgColor);
-  clk.drawString(sk["SD"].as<String>(), 28, 13);
-  // clk.drawString("100%",28,13);
-  clk.pushSprite(100, 214);
-  clk.deleteSprite();
-  // String A = sk["SD"].as<String>();
-  huminum = atoi((sk["SD"].as<String>()).substring(0, 2).c_str());
-
-  if (huminum > 90)
-    humicol = 0x00FF;
-  else if (huminum > 70)
-    humicol = 0x0AFF;
-  else if (huminum > 40)
-    humicol = 0x0F0F;
-  else if (huminum > 20)
-    humicol = 0xFF0F;
-  else
-    humicol = 0xF00F;
-  humidityWin();
+#if !SHT3x_EN
+  float temp = sk["temp"].as<float>();
+  float humi = atof((sk["SD"].as<String>()).substring(0,2).c_str());
+  drawTemp(temp, humi);
+#endif
 
   // 城市名称
   clk.createSprite(94, 30);
@@ -979,7 +1025,7 @@ void scrollBanner()
   if (scrollText[currentIndex])
   {
     clkb.setColorDepth(8);
-    clkb.loadFont(ZdyLwFont_20);
+    clkb.loadFont(ali_puhuiti);
     clkb.createSprite(150, 30);
     clkb.fillSprite(bgColor);
     clkb.setTextWrap(false);
@@ -991,7 +1037,7 @@ void scrollBanner()
     clkb.deleteSprite();
     clkb.unloadFont();
 
-    if (currentIndex >= 5)
+    if (currentIndex >= 6)
       currentIndex = 0; //回第一个
     else
       currentIndex += 1; //准备切换到下一个
@@ -1081,7 +1127,7 @@ void digitalClockDisplay(int reflash_en = 0)
     reflash_en = 0;
   /***日期****/
   clk.setColorDepth(8);
-  clk.loadFont(ZdyLwFont_20);
+  clk.loadFont(ali_puhuiti);
 
   //星期
   clk.createSprite(58, 30);
@@ -1215,6 +1261,9 @@ void reflashBanner()
   if (DHT_img_flag != 0)
     IndoorTem();
 #endif
+#if SHT3x_EN
+    ShtIndoorTem();
+#endif
   scrollBanner();
 }
 
@@ -1284,6 +1333,9 @@ void setup()
   dht.begin();
   //从eeprom读取DHT传感器使能标志
   DHT_img_flag = EEPROM.read(DHT_addr);
+#endif
+#if SHT3x_EN
+  sht3x.init();
 #endif
   //从eeprom读取背光亮度设置
   if (EEPROM.read(BL_addr) > 0 && EEPROM.read(BL_addr) < 100)
