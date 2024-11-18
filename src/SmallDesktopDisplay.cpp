@@ -108,6 +108,8 @@ void refresh_AnimatedImage();                                    //更新右下�
 unsigned long long currentUnixTimestamp();
 void drawTemp(float temp, float humi); //绘制温度和湿度
 bool wakeUpWifiAndWait();            //唤醒WIFI并等待连接成功
+void updateBrightness(int brightness);
+void autoUpdateBrightness();
 
 //创建时间更新函数线程
 Thread reflash_time = Thread();
@@ -391,7 +393,7 @@ void Serial_set()
         delay(5);
         SMOD = "";
         Serial.printf("亮度调整为：");
-        analogWrite(LCD_BL_PIN, 1023 - (LCD_BL_PWM * 10));
+        updateBrightness(LCD_BL_PWM);
         Serial.println(LCD_BL_PWM);
         Serial.println("");
       }
@@ -729,15 +731,10 @@ void saveParamCallback()
   Web_win();
   loadNum--;
   loading(1);
-  if (EEPROM.read(BL_addr) != LCD_BL_PWM)
-  {
-    EEPROM.write(BL_addr, LCD_BL_PWM);
-    EEPROM.commit();
-    delay(5);
-  }
+  
   // 屏幕亮度
   Serial.printf("亮度调整为：");
-  analogWrite(LCD_BL_PIN, 1023 - (LCD_BL_PWM * 10));
+  updateBrightness(LCD_BL_PWM);
   Serial.println(LCD_BL_PWM);
   // 天气更新时间
   Serial.printf("天气更新时间调整为：");
@@ -1252,6 +1249,8 @@ void reflashTime()
     digitalClockDisplay();
     prevDisplay = currentSecond;
     prevTime = 0;
+
+    autoUpdateBrightness(); //自动调节亮度
   }
 }
 
@@ -1362,11 +1361,12 @@ void setup()
   if (EEPROM.read(Ro_addr) >= 0 && EEPROM.read(Ro_addr) <= 3)
     LCD_Rotation = EEPROM.read(Ro_addr);
 
-  pinMode(LCD_BL_PIN, OUTPUT);
-  analogWrite(LCD_BL_PIN, 1023 - (LCD_BL_PWM * 10));
-
   tft.begin();          /* TFT init */
   tft.invertDisplay(1); //反转所有显示颜色：1反转，0正常
+
+  pinMode(LCD_BL_PIN, OUTPUT);
+  updateBrightness(LCD_BL_PWM);
+
   auto st = millis();
   tft.setRotation(LCD_Rotation);
   tft.fillScreen(0x0000);
@@ -1489,6 +1489,45 @@ void refresh_AnimatedImage()
     }
   }
 #endif
+}
+
+void updateBrightness(int brightness)
+{
+  if (brightness < 0 || brightness > 100) {
+    Serial.println("Brightness value error");
+    return;
+  }
+  LCD_BL_PWM = brightness;
+  if (brightness == 0) {
+    analogWrite(LCD_BL_PIN, 0);
+    return;
+  }
+  analogWrite(LCD_BL_PIN, (brightness / 100.0) * 255);
+  Serial.printf("Brightness updated to %d%%\n", brightness);
+  if (EEPROM.read(BL_addr) != LCD_BL_PWM)
+  {
+    EEPROM.write(BL_addr, LCD_BL_PWM);
+    EEPROM.commit();
+    delay(5);
+  }
+}
+
+
+void autoUpdateBrightness()
+{
+  auto h = hour();
+  int targetBrightness;
+  if (h >= 22 || h <= 6) {
+    targetBrightness = 25;
+  } else if (h >= 7 && h <= 18) {
+    targetBrightness = 75;
+  } else {
+    targetBrightness = 50;
+  }
+  if (targetBrightness != LCD_BL_PWM) {
+    Serial.printf("Auto brightness update: %d%%\n", targetBrightness);
+    updateBrightness(targetBrightness);
+  }
 }
 
 void loop()
