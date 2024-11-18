@@ -107,21 +107,22 @@ void weaterData(String *cityDZ, String *dataSK, String *dataFC); //天气信息�
 void refresh_AnimatedImage();                                    //更新右下角
 unsigned long long currentUnixTimestamp();
 void drawTemp(float temp, float humi); //绘制温度和湿度
+bool wakeUpWifiAndWait();            //唤醒WIFI并等待连接成功
 
 //创建时间更新函数线程
 Thread reflash_time = Thread();
 //创建副标题切换线程
 Thread reflash_Banner = Thread();
-//创建恢复WIFI链接
-Thread reflash_openWifi = Thread();
+//联网刷新数据
+Thread reflash_with_wifi = Thread();
 //创建动画绘制线程
 Thread reflash_Animate = Thread();
 
 //创建协程池
-StaticThreadController<4> controller(&reflash_time, &reflash_Banner, &reflash_openWifi, &reflash_Animate);
+StaticThreadController<4> controller(&reflash_time, &reflash_Banner, &reflash_with_wifi, &reflash_Animate);
 
 //联网后所有需要更新的数据
-Thread WIFI_reflash = Thread();
+
 
 /* *****************************************************************
  *  参数设置
@@ -136,7 +137,7 @@ struct config_type
 config_type wificonf = {{"WiFi名"}, {"密码"}};
 
 //天气更新时间  X 分钟
-unsigned int updateweater_time = 1;
+unsigned int updateweater_time = 10;
 
 //----------------------------------------------------
 
@@ -1270,6 +1271,10 @@ void reflashBanner()
 //所有需要联网后更新的方法都放在这里
 void WIFI_reflash_All()
 {
+  if (!wakeUpWifiAndWait()) {
+    Serial.println("WIFI未连接");
+    return;
+  }
   if (Wifi_en == 1)
   {
     if (WiFi.status() == WL_CONNECTED)
@@ -1300,6 +1305,19 @@ void openWifi()
   Serial.println("WIFI reset......");
   WiFi.setSleep(false); // wifi on
   Wifi_en = 1;
+}
+
+bool wakeUpWifiAndWait()
+{
+  auto beginWait = millis();
+  WiFi.setSleep(false); // wifi on
+  delay(100);
+  while (WiFi.status() != WL_CONNECTED && millis() - beginWait < 5000)
+  {
+    delay(100);
+  }
+  Wifi_en = WiFi.status() == WL_CONNECTED;
+  return WiFi.status() == WL_CONNECTED;
 }
 
 // 强制屏幕刷新
@@ -1444,11 +1462,11 @@ void setup()
   reflash_Banner.setInterval(2 * TMS); //设置所需间隔 2秒
   reflash_Banner.onRun(reflashBanner);
 
-  reflash_openWifi.setInterval(updateweater_time * 60 * TMS); //设置所需间隔 10分钟
-  reflash_openWifi.onRun(openWifi);
+  reflash_with_wifi.setInterval(updateweater_time * 60 * TMS); //设置所需间隔 10分钟
+  reflash_with_wifi.onRun(WIFI_reflash_All);
 
   reflash_Animate.setInterval(TMS / 10); //设置帧率
-  reflash_openWifi.onRun(refresh_AnimatedImage);
+  reflash_Animate.onRun(refresh_AnimatedImage);
   controller.run();
 }
 
@@ -1474,7 +1492,6 @@ void loop()
   // refresh_AnimatedImage(&TJpgDec); //更新右下角
   refresh_AnimatedImage(); //更新右下角
   Supervisor_controller(); // 守护线程池
-  WIFI_reflash_All();      // WIFI应用
   Serial_set();            //串口响应
   Button_sw1.loop();       //按钮轮询
 }
