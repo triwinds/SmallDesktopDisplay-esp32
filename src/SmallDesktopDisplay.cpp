@@ -1367,8 +1367,12 @@ void setup()
 
   tft.begin();          /* TFT init */
   tft.invertDisplay(1); //反转所有显示颜色：1反转，0正常
+  auto st = millis();
   tft.setRotation(LCD_Rotation);
   tft.fillScreen(0x0000);
+  auto timeUsage = millis() - st;
+  Serial.printf("tft fill screen time usage: %d\n", timeUsage);
+  Serial.printf("max fps: %d\n", 1000 / timeUsage);
   tft.setTextColor(TFT_BLACK, bgColor);
 
   targetTime = millis() + 1000;
