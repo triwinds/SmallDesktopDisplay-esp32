@@ -74,7 +74,7 @@
 // Try ONE option at a time to find the correct colour order for your display
 
 //  #define TFT_RGB_ORDER TFT_RGB  // Colour order Red-Green-Blue
-//  #define TFT_RGB_ORDER TFT_BGR  // Colour order Blue-Green-Red
+ #define TFT_RGB_ORDER TFT_BGR  // Colour order Blue-Green-Red
 
 // For M5Stack ESP32 module with integrated ILI9341 display ONLY, remove // in line below
 
@@ -88,7 +88,7 @@
 #define TFT_WIDTH  240 // ST7789 240 x 240 and 240 x 320
 // #define TFT_HEIGHT 160
 // #define TFT_HEIGHT 128
-#define TFT_HEIGHT 240 // ST7789 240 x 240
+#define TFT_HEIGHT 320 // ST7789 240 x 240
 // #define TFT_HEIGHT 320 // ST7789 240 x 320
 // #define TFT_HEIGHT 240 // GC9A01 240 x 240
 
@@ -222,7 +222,7 @@
 
 #define TFT_MOSI 5 // In some display driver board, it might be written as "SDA" and so on.
 #define TFT_SCLK 4
-// #define TFT_CS   5  // Chip select control pin
+#define TFT_CS   16  // Chip select control pin
 #define TFT_DC   7  // Data Command control pin
 #define TFT_RST  6  // Reset pin (could connect to Arduino RESET pin)
 #define TFT_BL   15  // LED back-light
