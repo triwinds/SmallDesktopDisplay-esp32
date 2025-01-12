@@ -74,6 +74,12 @@ DHT dht(DHTPIN, DHTTYPE);
 SHT3x sht3x(1, 2);
 #endif
 
+#if TEMT6000_EN
+#include "TEMT6000.h"
+// GPIO 17 TEMT6000
+Temt6000 temt6000(17);
+#endif
+
 //定义按钮引脚
 Button2 Button_sw1 = Button2(4);
 
@@ -146,7 +152,7 @@ unsigned int updateweater_time = 10;
 // LCD屏幕相关设置
 TFT_eSPI tft = TFT_eSPI(); // 引脚请自行配置tft_espi库中的 User_Setup.h文件
 TFT_eSprite clk = TFT_eSprite(&tft);
-#define LCD_BL_PIN 15 // LCD背光引脚
+#define LCD_BL_PIN TFT_BL // LCD背光引脚
 uint16_t bgColor = 0x0000;
 
 //其余状态标志位
@@ -1504,31 +1510,52 @@ void updateBrightness(int brightness)
   }
   analogWrite(LCD_BL_PIN, (brightness / 100.0) * 255);
   Serial.printf("Brightness updated to %d%%\n", brightness);
-  if (EEPROM.read(BL_addr) != LCD_BL_PWM)
-  {
-    EEPROM.write(BL_addr, LCD_BL_PWM);
-    EEPROM.commit();
-    delay(5);
-  }
+  // if (EEPROM.read(BL_addr) != LCD_BL_PWM)
+  // {
+  //   EEPROM.write(BL_addr, LCD_BL_PWM);
+  //   EEPROM.commit();
+  //   delay(5);
+  // }
 }
 
-
+#if !TEMT6000_EN
 void autoUpdateBrightness()
 {
   auto h = hour();
   int targetBrightness;
-  if (h >= 22 || h <= 6) {
+  if (h >= 23 || h <= 6) {
     targetBrightness = 25;
   } else if (h >= 7 && h <= 18) {
-    targetBrightness = 75;
+    targetBrightness = 85;
   } else {
-    targetBrightness = 50;
+    targetBrightness = 65;
   }
   if (targetBrightness != LCD_BL_PWM) {
     Serial.printf("Auto brightness update: %d%%\n", targetBrightness);
     updateBrightness(targetBrightness);
   }
 }
+#endif
+#if TEMT6000_EN
+const float maxVal = 0.10;
+void autoUpdateBrightness()
+{
+  float val = temt6000.read();
+  int targetBrightness = 1;
+  if (val <= 0) {
+    targetBrightness = 1; // 最暗
+  } else if (val >= maxVal) {
+    targetBrightness = 100; // 最亮
+  } else {
+    targetBrightness = val / maxVal * 10;
+    targetBrightness *= 10;
+  }
+  if (targetBrightness != LCD_BL_PWM) {
+    Serial.printf("Auto brightness update: %d%%\n", targetBrightness);
+    updateBrightness(targetBrightness);
+  }
+}
+#endif
 
 void loop()
 {

@@ -5,5 +5,6 @@
 #define SHT3x_EN 1            // 设定SHT3x温湿度传感器使能标志
 #define SD_FONT_YELLOW 0xD404 // 黄色字体颜色
 #define SD_FONT_WHITE 0xFFFF  // 黄色字体颜色
+#define TEMT6000_EN 1           // 亮度传感器使能标志
 
 #define timeY 82 // 定义高度
