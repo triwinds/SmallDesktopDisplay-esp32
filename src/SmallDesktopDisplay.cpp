@@ -178,7 +178,7 @@ unsigned long long unixTimestampShift = 0; //时间偏移量
 WeatherNum wrat;
 
 uint32_t targetTime = 0;
-String cityCode = "101090609"; //天气城市代码
+String cityCode = "101020100"; //天气城市代码
 int tempnum = 0;               //温度百分比
 int huminum = 0;               //湿度百分比
 int tempcol = 0xffff;          //温度显示颜色
@@ -1537,7 +1537,7 @@ void autoUpdateBrightness()
 }
 #endif
 #if TEMT6000_EN
-const float maxVal = 0.10;
+const float maxVal = 0.07;
 void autoUpdateBrightness()
 {
   float val = temt6000.read();
@@ -1547,7 +1547,7 @@ void autoUpdateBrightness()
   } else if (val >= maxVal) {
     targetBrightness = 100; // 最亮
   } else {
-    targetBrightness = val / maxVal * 10;
+    targetBrightness = (val / maxVal * 10) + 1;
     targetBrightness *= 10;
   }
   if (targetBrightness != LCD_BL_PWM) {
